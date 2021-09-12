@@ -2,19 +2,18 @@ import org.gradle.crypto.checksum.Checksum
 
 plugins {
 	id "distribution"
-	id "com.github.johnrengelman.shadow" version "7.0.0"
+	id "com.github.johnrengelman.shadow" version "6.1.0"
 	id "java"
 	id "com.github.breadmoirai.github-release" version "2.2.12"
 	id "io.toolebox.git-versioner" version "1.6.5"
 	id 'org.gradle.crypto.checksum' version '1.2.0'
-	id "com.diffplug.spotless" version "5.15.0"
+	id "com.diffplug.spotless" version "5.11.0"
 	id 'de.fuerstenau.buildconfig' version '1.1.8'
 	id "com.dorongold.task-tree" version "2.1.0"
 	id "com.geoffgranum.gradle-conventional-changelog" version "0.3.1"
 	id "org.asciidoctor.jvm.convert" version "3.3.2"
 	id "org.ajoberstar.grgit" version "4.1.0"
 	id "org.sonarqube" version "3.3"
-
 }
 
 repositories {
@@ -45,7 +44,7 @@ dependencies {
 	//implementation 'com.google.guava:guava:28.2-jre'
 
 
-	testCompile "com.github.tomakehurst:wiremock-jre8:2.31.0"
+	testImplementation "com.github.tomakehurst:wiremock-jre8:2.31.0"
 
 	testImplementation "org.junit.jupiter:junit-jupiter:5.8.0"
 	testRuntimeOnly('org.junit.jupiter:junit-jupiter-engine:5.8.0')
@@ -132,12 +131,12 @@ distributions {
 }
 
 latestDistZip {
-	archiveName = "${project.name}.zip"
+	archiveFileName = "${project.name}.zip"
 }
 
 
 latestDistTar {
-	archiveName = "${project.name}.tar"
+	archiveFileName = "${project.name}.tar"
 }
 
 jar {
@@ -177,7 +176,7 @@ shadowJar {
 		attributes 'Main-Class': 'dev.jbang.Main'
 	}
 	// warning is printed about deprecation in 7.0 but if I fix this shadowjar turns into a bogus file
-	archiveName = "${baseName}.${extension}"
+	archiveFileName = "${archiveBaseName}.${archiveExtension}"
 }
 
 test {
@@ -207,7 +206,7 @@ processTestResources.dependsOn copyTestResources
 task createChecksum(type: Checksum) {
 	dependsOn(assembleDist)
 	files = files([distZip, latestDistZip, distTar, latestDistTar].outputs.files.flatten())
-	outputDir = distZip.destinationDir
+	outputDir = distZip.destinationDirectory.get().getAsFile()
 	algorithm = Checksum.Algorithm.SHA256
 }
 
@@ -266,6 +265,23 @@ task tag(type: Exec) {
 	doFirst {
 		println 'Tagging with v' + project.version
 		commandLine 'git', 'tag', '-a', 'v' + project.version, '-F', 'CHANGELOG.md'
+	}
+}
+
+githubRelease {
+	// currently does not work as project.version not set.
+	// FilenameFilter filter = { dir, filename -> filename.contains(project.version) } // ensure nothing extra gets included.
+	//releaseAssets = distZip.destinationDir.listFiles filter
+	releaseAssets = files(distZip.destinationDirectory.get().getAsFile().listFiles(), new File(project.getBuildDir(), "tmp/version.txt"))
+	//println(getReleaseAssets().getFiles())
+	// set ORG_GRADLE_PROJECT_github_token
+	token = project.hasProperty('github_token') ? getProperty('github_token') : "unknown_github_token"
+	owner = "jbangdev"
+	draft = true
+	try {
+		body = grgit.resolve.toTag(project.version).fullMessage
+	} catch (Exception e) {
+		body = "No tag description found for " + project.version
 	}
 }
 
