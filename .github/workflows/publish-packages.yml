@@ -25,6 +25,7 @@ jobs:
         uses: actions/setup-java@v2
         with:
           java-version: 11
+          distribution: 'temurin'
       - name: build-gradle
         run: ./gradlew clean build -x test --build-cache --scan -s
       - name: version extract
